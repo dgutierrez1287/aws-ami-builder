@@ -1,0 +1,6 @@
+.vagrant/**
+.gradle/**
+.compiledTools/**
+docs/diagrams/*.png
+.gradletasknamecache
+.bundle/**
