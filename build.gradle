@@ -1,0 +1,205 @@
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
+import com.bmuschko.gradle.vagrant.tasks.*
+import com.amazonaws.auth.BasicAWSCredentials
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
+import com.amazonaws.auth.profile.ProfileCredentialsProvider
+import com.amazonaws.services.simpledb.AmazonSimpleDBClient
+import com.amazonaws.services.simpledb.model.*
+import static groovy.io.FileType.FILES
+import com.bmuschko.gradle.vagrant.tasks.VagrantSsh
+import com.bmuschko.gradle.vagrant.tasks.Vagrant
+
+buildscript {
+  ext {
+      awsVersion = '1.11.8'
+  }
+  repositories {
+      jcenter()
+      mavenCentral()
+  }
+
+  dependencies {
+      classpath "com.bmuschko:gradle-vagrant-plugin:2.0"
+      classpath "com.amazonaws:aws-java-sdk-core:${awsVersion}"
+      classpath "com.amazonaws:aws-java-sdk-simpledb:${awsVersion}"
+  }
+}
+
+apply plugin: 'com.bmuschko.vagrant'
+
+ext {
+  awsCredentials = getAwsCredentials()
+  providedAwsAccessKey = getAwsAccessKey(awsCredentials)
+  providedAwsSecretKey = getAwsSecretKey(awsCredentials)
+  localSDBPrefix = setLocalSdbPrefix()
+  sdbDomains = [ "ServiceMapping" ]
+  compiledToolsDir = ".compiledTools"
+  plantUMLVersion = "8046"
+}
+
+// Vagrant plugin configuration
+vagrant {
+    boxDir = file('.')
+
+    installation {
+        validate = false
+    }
+}
+
+// Document Tasks //
+task installDiagramDependencies (type: Task){ 
+  description = "Installs the depdencies for building diagrams"
+  group = "Documentation"
+  
+  def pumlFileName = "plantuml.${plantUMLVersion}.jar"
+  def pumlFile = new File("${compiledToolsDir}/${pumlFileName}")
+  outputs.file pumlFile
+
+  def pumlUrl = "http://sourceforge.net/projects/plantuml/files/plantuml.${plantUMLVersion}.jar/download"
+
+  doLast {
+    logger.info("Downloading PlantUML jar ${pumlFileName}")
+    logger.info("Getting PlantUML from url ${pumlUrl}")
+
+    downloadFile(compiledToolsDir, pumlFileName, pumlUrl)
+  }
+}
+
+task buildDiagrams (type: Task) {
+  description = "Compiles Diagrams"
+  group = "Documentation"
+
+  dependsOn 'createToolsDir'
+  dependsOn 'installDiagramDependencies'
+
+  dependsOn 'cleanDiagrams'
+
+  doLast { 
+    def fileList = []
+
+    new File('docs/diagrams').eachFile(FILES) {
+      if (it.name.endsWith('.puml')) {
+        fileList = fileList + it
+      }
+    }
+
+    for (file in fileList) {
+      shellExecute("java -jar ${compiledToolsDir}/plantuml.${plantUMLVersion}.jar ${file}")
+    }
+  }
+}
+
+task cleanDiagrams (type: Delete) {
+  description = "Cleans the compiled diagrams"
+  group = "Documentation"
+
+  delete fileTree(dir: 'docs/diagrams' , include: '**/*.png')
+}
+
+// Common Tasks //
+task createToolsDir (type: Task) {
+  description = "Creates the directory for compiled tools"
+  group = "Common"
+  
+  def toolsDir = new File(compiledToolsDir)
+  outputs.dir toolsDir
+
+  doLast {
+    logger.info("Creating compiled tools directory")
+    toolsDir.mkdirs()
+  }
+}
+
+
+// methods //
+/* 
+  getAwsCredentials()
+  Getting AWS credentials from either a profile, passed as properties or
+  by the default chain provider 
+*/
+def getAwsCredentials() {
+
+  // 3 cases for getting credentials
+  // 1. if a profile name is specified in the properties file use creds from that profile
+  // 2. if the accessKey and secretKey are in the properties file use those credentials
+  // 3. used AWSs defualt credentals chain
+  if (project.hasProperty("awsProfileName")) {
+    logger.info("using the AWS credential profile provider")
+
+    profileName = project.get("awsProfileName")
+    return new ProfileCredentialsProvider(profileName).getCredentials()
+  }
+  else if (project.hasProperty("awsAccessKey")) {
+    logger.info("using the AWS credential basic provider")
+
+    accessKey = project.get("awsAccessKey")
+    secretKey = project.get("awsSecretKey")
+    return new BasicAWSCredentials(accessKey, secretKey)
+  }
+  else {
+    logger.info("using the AWS default provider chain")
+
+    return new DefaultAWSCredentialsProviderChain().getCredentials()
+  }
+}
+
+/*
+  getAwsAccessKey(awsCredentials)
+  This will return the Access key part of the AWS
+  credentials
+*/
+def getAwsAccessKey(awsCredentials) {
+  
+  return awsCredentials.getAWSAccessKeyId()
+}
+
+/*
+  getAwsSecretKey(awsCredentials)
+  This will return the Secret key part of the AWS
+  credentials
+*/
+def getAwsSecretKey(awsCredentials) {
+
+  return awsCredentials.getAWSSecretKey()
+}
+
+/*
+  shellExecute(command)
+  This will execute a command on the bash shell
+*/
+def shellExecute(command) {
+
+  def buildCmd = [
+    "bash",
+    "-c",
+    command
+  ]
+
+  Process p = buildCmd.execute()
+  p.consumeProcessOutput(System.out, System.err)
+  p.waitFor()
+
+  return p.exitValue()
+}
+
+/*
+  downloadFile(fileName, url)
+  This will download a file to a specific file from an address,
+  this will mostly be used to download any compiled dependencies
+*/
+def downloadFile(parentDir, fileName, url) {
+  
+  while (url) {
+    new URL( url ).openConnection().with { conn ->
+      conn.instanceFollowRedirects = false
+        def prevUrl = url
+        url = conn.getHeaderField( "Location" )
+        if (!url) {
+          def file = new FileOutputStream("${parentDir}/${fileName}")
+          def out = new BufferedOutputStream(file)
+          out << new URL(prevUrl).openStream()
+          out.close()
+        }
+      }
+  }
+}
