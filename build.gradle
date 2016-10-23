@@ -31,8 +31,6 @@ ext {
   awsCredentials = getAwsCredentials()
   providedAwsAccessKey = getAwsAccessKey(awsCredentials)
   providedAwsSecretKey = getAwsSecretKey(awsCredentials)
-  localSDBPrefix = setLocalSdbPrefix()
-  sdbDomains = [ "ServiceMapping" ]
   compiledToolsDir = ".compiledTools"
   plantUMLVersion = "8046"
 }
@@ -61,7 +59,7 @@ task installDiagramDependencies (type: Task){
     logger.info("Downloading PlantUML jar ${pumlFileName}")
     logger.info("Getting PlantUML from url ${pumlUrl}")
 
-    downloadFile(compiledToolsDir, pumlFileName, pumlUrl)
+    downloadFile(compiledToolsDir, pumlFileName, pumlUrl, "None")
   }
 }
 
@@ -108,6 +106,16 @@ task createToolsDir (type: Task) {
     logger.info("Creating compiled tools directory")
     toolsDir.mkdirs()
   }
+}
+
+// vagrant //
+task vagrantSetAWSCreds (type: VagrantSsh) {
+    description = "Sets AWS credentials pulled from the local machine into vagrant"
+    group = "Vagrant"
+
+    sshCommand = "/vagrant/vagrant_scripts/utility/set_aws_creds.sh ${providedAwsAccessKey} ${providedAwsSecretKey}"
+
+    dependsOn vagrantUp
 }
 
 
@@ -187,11 +195,15 @@ def shellExecute(command) {
   This will download a file to a specific file from an address,
   this will mostly be used to download any compiled dependencies
 */
-def downloadFile(parentDir, fileName, url) {
+def downloadFile(parentDir, fileName, url, cookie) {
   
   while (url) {
     new URL( url ).openConnection().with { conn ->
       conn.instanceFollowRedirects = false
+
+      if (cookie != "None") {
+        conn.setRequestProperty("Cookie", cookie)
+      }
         def prevUrl = url
         url = conn.getHeaderField( "Location" )
         if (!url) {
