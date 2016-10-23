@@ -14,5 +14,10 @@ wget https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64 -O insta
 chmod 755 installers/jq
 sudo mv installers/jq /bin/
 
+# install python dependencies for awscli
+sudo rpm -iUvh http://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-8.noarch.rpm
+sudo yum install -y python-devel
+sudo yum install -y python-pip
+
 # install awscli 
 sudo pip install awscli
