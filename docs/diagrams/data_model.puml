@@ -18,17 +18,101 @@ hide stereotypes
 skinparam classarrowcolor gray
 
 table(Projects) {
-    ProjectName: varchar <<pk>>
-    Users: varchar
+    id: int autoincrement NOT NULL <<pk>>
+    name: varchar NOT NULL
+    keyset_alias: varchar NOT NULL <<fk>>
+    ami_retention_non_promoted: int NOT NULL
+    ami_retention_promoted: int NOT NULL
+    project_region varcahr NOT NULL
+}
+
+table(ProjectUsers) {
+    project_name: varchar NOT NULL <<fk>>
+    username: varchar NOT NULL<<fk>>
+    project_name, username <<pk>>
 }
 
 table(Users) {
-    UserName: varchar <<pk>>
-    Password: varchar
-    Email: varchar
-    IsSuperAdmin: boolean
+    username: varchar NOT NULL <<pk>>
+    password: varchar NOT NULL
+    email: varchar NOT NULL
+    is_super_admin: boolean NOT NULL
 }
 
-Projects::Users --> Users::UserName
+table(AwsCredentials) {
+    alias: varchar NOT NULL <<pk>>
+    access_key: varchar NOT NULL
+    secret_key: varchar NOT NULL
+}
+
+table(BuildJobs) {
+    id: int autoincrement NOT NULL<<pk>>
+    project_id: int NOT NULL <<fk>>
+    name: varchar NOT NULL
+    description: varchar
+    base_os: varchar NOT NULL
+    auto_build: boolean NOT NULL
+    last_built_base_ami_id: varchar NOT NULL
+    last_build_date: datetime
+    auto_deploy: boolean NOT NULL
+    keep_until_manual_delete: boolean NOT NULL
+    build_script: text NOT NULL
+}
+
+table(Builds) {
+    id: int autoincrement NOT NULL <<pk>>
+    project_id: vint NOT NULL <<fk>>
+    job_id: int NOT NULL <<fk>>
+    build_date: datetime NOT NULL
+    build_successful: boolean NOT NULL
+    build_type: varchar NOT NULL
+    promoted: boolean NOT NULL
+    environments_used_in: varchar NOT NULL
+    base_ami_id: varchar NOT NULL
+    built_ami_id: varchar NOT NULL
+}
+
+table(RetiredAmis) {
+    id: int autoincrement NOT NULL<<pk>>
+    project_id: int NOT NULL <<fk>>
+    build_id: int NOT NULL <<fk>>
+}
+
+table(DeletedAmis) {
+    id: int autoincrement NOT NULL <<pk>>
+    project_id: int NOT NULL<<fk>>
+    build_id: int NOT NULL <<fk>>
+}
+
+table(Environments) {
+    id: int autoincrement NOT NULL <<pk>>
+    project_id: int NOT NULL <<fk>>
+    name: varchar NOT NULL
+    build_id: int <<fk>>
+    auto_deploy: boolean NOT NULL
+}
+
+' Projects foreign keys
+Users::username --> Projects::users M to M
+AwsCredentials::alias --> Projects::keyset_alias : 1 to 1
+
+' BuildJobs foreign keys
+Projects::id --> BuildJobs::project_id : 1 to 1
+
+' Builds foreign keys
+Projects::id --> Builds::project_id : 1 to 1
+BuildJobs::id --> Builds::job_id : 1 to 1
+
+' RetiredAmis foreign keys
+Projects::id --> RetiredAmis::project_id : 1 to 1
+Builds::id --> RetiredAmis::build_id : 1 to 1
+
+' DeletedAmis foreign keys
+Projects::id --> DeletedAmis::project_id : 1 to 1
+Builds::id --> DeletedAmis::build_id : 1 to 1
+
+' EnvironmentAmis foreign keys
+Projects::id --> EnvironmentAmis::project_id : 1 to 1
+Builds::id --> EnvironmentAmis::build_id : 1 to 1
 
 @enduml

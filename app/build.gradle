@@ -1,0 +1,162 @@
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
+
+buildscript {
+    ext {
+        springBootVersion = '1.4.1.RELEASE'
+    }
+    repositories {
+        jcenter()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}"
+        classpath "io.spring.gradle:dependency-management-plugin:0.5.4.RELEASE"
+        classpath "com.amazonaws:aws-java-sdk-core:${awsVersion}"
+        classpath "com.bmuschko:gradle-docker-plugin:3.0.3"
+    }
+}
+
+group 'com.diegog'
+
+apply plugin: 'groovy'
+apply plugin: 'spring-boot'
+apply plugin: "io.spring.dependency-management"
+apply plugin: 'idea'
+
+repositories {
+    mavenCentral()
+    jcenter()
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "com.amazonaws:aws-java-sdk-bom:${awsVersion}"
+    }
+}
+
+processResources() {
+    expand(project.properties)
+}
+
+springBoot {
+    //add project info
+    buildInfo()
+}
+
+jar {
+    baseName = 'ami-builder'
+    version = projectVersion
+}
+
+configurations {
+    local
+    prod
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+dependencies {
+    compile (
+            'org.springframework.boot:spring-boot-starter-jdbc',
+            'org.springframework.boot:spring-boot-starter-security',
+            'org.springframework.boot:spring-boot-starter-web',
+            'org.springframework.boot:spring-boot-starter-data-jpa',
+            'org.springframework.boot:spring-boot-starter-aop',
+            'org.codehaus.groovy:groovy-all',
+            'org.liquibase:liquibase-core:3.5.3',
+            'mysql:mysql-connector-java',
+            'com.amazonaws:aws-java-sdk-core',
+            'com.amazonaws:aws-java-sdk-s3',
+            'com.amazonaws:aws-java-sdk-ec2',
+            'org.springframework.boot:spring-boot-devtools'
+    )
+}
+
+// Help Tasks //
+task showVars (type: Task) {
+    description = "Shows the variables values for the build"
+    group = "Common"
+
+    println "App Vars:"
+    println "springBootVersion: ${springBootVersion}"
+    println " "
+}
+
+// Docker Tasks //
+// App images and containers //
+task createAppImage (type: Exec) {
+    description = "Creates the app image"
+    group = "Docker"
+
+    executable "sh"
+    args "-c", "/vagrant/vagrant_scripts/utility/app/create_app_image.sh " +
+            "${projectVersion} ${groovyVersion} ${sourceDir}"
+}
+
+task startAppContainer (type: Exec) {
+    description = "Creates and starts the app container"
+    group = "Docker"
+
+    executable "sh"
+    args "-c", "/vagrant/vagrant_scripts/utility/app/run_app_container.sh " +
+            "${providedAwsAccessKey} ${providedAwsSecretKey}"
+}
+
+task stopAppContainer (type: Exec) {
+    description = "Stops the app container"
+    group = "Docker"
+
+    executable "sh"
+    args "-c", "/vagrant/vagrant_scripts/utility/app/stop_containers.sh app"
+}
+
+task removeAppContainer (type: Exec) {
+    description = "Removes the app container"
+    group = "Docker"
+
+    executable "sh"
+    args "-c", "/vagrant/vagrant_scripts/utility/app/remove_containers.sh app"
+}
+
+removeAppContainer.dependsOn stopAppContainer
+startAppContainer.dependsOn removeAppContainer
+
+
+// Build images and containers //
+task createBuildImage (type: Exec) {
+    description = "Creates the build image"
+    group = "Docker"
+
+    executable "sh"
+    args "-c", "/vagrant/vagrant_scripts/utility/app/create_build_image.sh " +
+            "${groovyVersion}  ${sourceDir}"
+}
+
+task startBuildContainer (type: Exec) {
+    description = "Creates and starts the build container"
+    group = "Docker"
+
+    executable "sh"
+    args "-c", "/vagrant/vagrant_scripts/utility/app/run_build_container.sh " +
+            "${providedAwsAccessKey} ${providedAwsSecretKey} ${sourceDir}"
+}
+
+task stopBuildContainer (type: Exec) {
+    description = "Stops the build container"
+    group = "Docker"
+
+    executable "sh"
+    args "-c", "/vagrant/vagrant_scripts/utility/app/stop_containers.sh build"
+}
+
+task removeBuildContainer (type: Exec) {
+    description = "Removes the build container"
+    group = "Docker"
+
+    executable "sh"
+    args "-c", "/vagrant/vagrant_scripts/utility/app/remove_containers.sh build"
+}
+
+startBuildContainer.dependsOn removeBuildContainer
+

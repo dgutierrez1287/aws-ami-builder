@@ -1,0 +1,11 @@
+---
+
+- name: master playbook
+  hosts: all
+
+- include: playbooks/base.yml
+- include: playbooks/docker.yml
+- include: playbooks/java.yml
+- include: playbooks/groovy.yml
+- include: playbooks/gradle.yml
+- include: playbooks/node_js_tools.yml

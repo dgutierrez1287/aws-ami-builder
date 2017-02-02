@@ -1,0 +1,122 @@
+---
+
+- name: docker playbook
+  hosts: all
+  become: true
+
+  tasks:
+
+  - name: add docker-main repo
+    yum_repository:
+      name: docker-main
+      description: docker-main
+      baseurl: https://yum.dockerproject.org/repo/main/centos/7/
+      enabled: yes
+      file: docker
+      gpgcheck: yes
+      gpgkey: https://yum.dockerproject.org/gpg
+
+  - name: add docker-testing repo
+    yum_repository:
+      name: docker-testing
+      description: docker-testing
+      baseurl: https://yum.dockerproject.org/repo/testing/centos/$releasever/
+      enabled: no
+      file: docker
+      gpgcheck: yes
+      gpgkey: https://yum.dockerproject.org/gpg
+
+  - name: add docker-beta repo
+    yum_repository:
+      name: docker-beta
+      description: docker-beta
+      baseurl: https://yum.dockerproject.org/repo/beta/centos/7/
+      enabled: no
+      file: docker
+      gpgcheck: yes
+      gpgkey: https://yum.dockerproject.org/gpg
+
+  - name: add docker-nightly repo
+    yum_repository:
+      name: docker-nightly
+      description: docker-nightly
+      baseurl: https://yum.dockerproject.org/repo/nightly/centos/7/
+      enabled: no
+      file: docker
+      gpgcheck: yes
+      gpgkey: https://yum.dockerproject.org/gpg
+
+  - name: install docker-engine package
+    yum:
+      name: docker-engine
+      state: present
+
+  - name: check for serviced directory
+    stat:
+      path: /etc/systemd/system/docker.service.d/docker.conf
+    register: st
+
+  - name: stop docker container before serviced mods
+    service:
+      name: docker
+      state: stopped
+    when: st.stat.exists == False
+
+  - name: remove docker sock on first run
+    file:
+      path: /var/run/docker.sock
+      state: absent
+    when: st.stat.exists == False
+
+  - name: ensure serviced docker dir
+    file:
+      path: /etc/systemd/system/docker.service.d
+      owner: root
+      group: root
+      mode: 0744
+      state: directory
+
+  - name: place docker service config
+    template:
+      src: templates/docker_service.j2
+      dest: /etc/systemd/system/docker.service.d/docker.conf
+      owner: root
+      group: root
+      mode: 0644
+
+  - name: install docker-py
+    pip:
+      name: docker-py
+      state: present
+
+  - name: add vagrant to docker group
+    user:
+      name: vagrant
+      groups: docker
+      append: yes
+
+  - name: ensure docker service is enabled
+    service:
+      name: docker
+      enabled: yes
+      state: started
+
+  - name: run portainer container
+    docker_container:
+      name: portainer
+      restart_policy: always
+      image: portainer/portainer
+      ports:
+        - "9000:9000"
+      volumes:
+        - "/var/run/docker.sock:/var/run/docker.sock"
+
+  handlers:
+    - name: restart docker
+      service:
+        name: docker
+        state: restarted
+
+
+
+

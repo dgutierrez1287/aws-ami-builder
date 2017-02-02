@@ -1,7 +1,12 @@
-.vagrant/**
-.gradle/**
-.compiledTools/**
+.vagrant
+.gradle
+.compiledTools
 docs/diagrams/*.png
 .gradletasknamecache
-.bundle/**
-.idea/**
+.bundle
+.idea/
+gradle.properties
+app/build
+app/gradle_cache
+ui/node_modules
+ui/npm-debug.log

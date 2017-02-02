@@ -1,0 +1,55 @@
+---
+
+- name: base playbook
+  hosts: all
+  become: true
+
+  tasks:
+
+  - name: install dev packages
+    yum: name={{ item }} state=present
+    with_items:
+      - python-pip
+      - python-devel
+      - wget
+      - telnet
+      - unzip
+      - mysql
+      - gcc
+      - gcc-c++
+      - make
+
+  - name: install awscli
+    pip:
+      name: awscli
+      state: present
+
+  - name: make installers directory
+    file:
+      path: /home/vagrant/installers
+      state: directory
+    become: true
+    become_method: su
+    become_user: vagrant
+
+  - name: make vagrant bin directory
+    file:
+      path: /home/vagrant/bin
+      state: directory
+    become: true
+    become_method: su
+    become_user: vagrant
+
+  - name: download and install jq
+    get_url:
+      url: https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64
+      dest: /bin/jq
+      owner: root
+      group: root
+      mode: 0755
+
+
+
+
+
+

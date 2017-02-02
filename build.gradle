@@ -1,13 +1,16 @@
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
 import com.bmuschko.gradle.vagrant.tasks.*
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
 import com.amazonaws.auth.profile.ProfileCredentialsProvider
-import com.amazonaws.services.simpledb.AmazonSimpleDBClient
-import com.amazonaws.services.simpledb.model.*
 import static groovy.io.FileType.FILES
 import com.bmuschko.gradle.vagrant.tasks.VagrantSsh
 import com.bmuschko.gradle.vagrant.tasks.Vagrant
+
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.X509Certificate;
+
+import javax.net.ssl.*;
 
 buildscript {
   ext {
@@ -33,15 +36,42 @@ ext {
   providedAwsSecretKey = getAwsSecretKey(awsCredentials)
   compiledToolsDir = ".compiledTools"
   plantUMLVersion = "8046"
+  gradleVersion = project.hasProperty('gradleVersion') ? project.hasProperty('gradleVersion') : "3.1"
+  sourceDir = project.hasProperty('sourceDir') ? project.hasProperty('sourceDir') : "/vagrant"
+  groovyVersion = project.hasProperty('groovyVersion') ? project.hasProperty('groovyVersion') : "2.4.7"
+  projectVersion = project.hasProperty('projectVersion') ? project.hasProperty('projectVersion') : "0.1.0"
+  mysqlVersion = project.hasProperty('mysqlVersion') ? project.hasProperty('mysqlVersion') : "5.7"
 }
 
 // Vagrant plugin configuration
 vagrant {
     boxDir = file('.')
 
+    environmentVariables {
+        variable 'IP', '192.168.1.33'
+        variable 'OPERATINGSYSTEM', 'redhat'
+    }
+
+
     installation {
         validate = false
     }
+}
+
+// Help Tasks //
+task showVars (type: Task) {
+    description = "Shows the variables values for the build"
+    group = "Common"
+
+    println "Main Vars:"
+    println "awsVersion: ${awsVersion}"
+    println "providedAWSAccessKey: ${providedAwsAccessKey}"
+    println "providedAWSSecretKey: ${providedAwsSecretKey}"
+    println "compiledToolsDir: ${compiledToolsDir}"
+    println "plantUMLVersion: ${plantUMLVersion}"
+    println "projectVersion: ${projectVersion}"
+    println "sourceDir: ${sourceDir}"
+    println " "
 }
 
 // Document Tasks //
@@ -108,14 +138,86 @@ task createToolsDir (type: Task) {
   }
 }
 
-// vagrant //
+// Vagrant Tasks //
 task vagrantSetAWSCreds (type: VagrantSsh) {
     description = "Sets AWS credentials pulled from the local machine into vagrant"
     group = "Vagrant"
-
     sshCommand = "/vagrant/vagrant_scripts/utility/set_aws_creds.sh ${providedAwsAccessKey} ${providedAwsSecretKey}"
-
     dependsOn vagrantUp
+}
+
+task vagrantStartMysql (type: VagrantSsh) {
+    description = "Sets AWS credentials pulled from the local machine into vagrant"
+    group = "Vagrant"
+    sshCommand = "/vagrant/vagrant_scripts/utility/start_mysql.sh ${mysqlVersion}"
+    dependsOn vagrantUp
+}
+
+vagrantUp.finalizedBy(vagrantSetAWSCreds)
+vagrantUp.finalizedBy(vagrantStartMysql)
+
+
+// Mysql Vagrant Tasks //
+task mysqlDropTables (type: VagrantSsh) {
+    description = "Drops all the tables on the mysql DB"
+    group = "Mysql"
+    sshCommand = "/vagrant/vagrant_scripts/utility/mysql_drop_tables.sh"
+}
+
+// Docker Vagrant Tasks //
+task dockerCleanImages (type: VagrantSsh) {
+    description = "Cleans stale docker images and clears cache"
+    group = "Docker"
+    sshCommand = "/vagrant/vagrant_scripts/utility/docker_cleanup.sh images"
+}
+
+task dockerCleanContainers (type: VagrantSsh) {
+    description = "Cleans stopped docker containers"
+    group = "Docker"
+    sshCommand = "/vagrant/vagrant_scripts/utility/docker_cleanup.sh containers"
+}
+
+task dockerCleanAll (type: VagrantSsh) {
+    description = "Cleans stopped docker containers and images"
+    group = "Docker"
+    sshCommand = "/vagrant/vagrant_scripts/utility/docker_cleanup.sh all"
+}
+
+// Remote App Tasks //
+task createAppImages (type: VagrantSsh) {
+    description = "Builds the app and build imagea for the app"
+    group = "App"
+    sshCommand = "pushd /vagrant; gradle :app:createBuildImage; gradle :app:createAppImage; popd"
+}
+
+task createAppImage (type: VagrantSsh) {
+    description = "Builds the app image for the app"
+    group = "App"
+    sshCommand = "pushd /vagrant; gradle :app:createAppImage; popd"
+}
+
+task createAppBuildImage (type: VagrantSsh) {
+    description = "Builds the build image for the app"
+    group = "App"
+    sshCommand = "pushd /vagrant; gradle :app:createBuildImage; popd"
+}
+
+task buildApp (type: VagrantSsh) {
+    description = "Builds the application using the build container"
+    group = "App"
+    sshCommand = "pushd /vagrant; gradle :app:startBuildContainer; popd"
+}
+
+task deployApp (type: VagrantSsh) {
+    description = "starts the application using the app container"
+    group = "App"
+    sshCommand = "pushd /vagrant; gradle :app:startAppContainer; popd"
+}
+
+task buildDeployApp (type: VagrantSsh) {
+    description = "runs a build with the build container and then deploys app"
+    group = "App"
+    sshCommand = "pushd /vagrant; gradle :app:startBuildContainer; gradle :app:startAppContainer; popd"
 }
 
 
@@ -196,7 +298,7 @@ def shellExecute(command) {
   this will mostly be used to download any compiled dependencies
 */
 def downloadFile(parentDir, fileName, url, cookie) {
-  
+
   while (url) {
     new URL( url ).openConnection().with { conn ->
       conn.instanceFollowRedirects = false

@@ -1,0 +1,58 @@
+---
+
+- name: groovy playbook
+  hosts: all
+
+  vars:
+    groovy_version: 2.4.7
+
+  tasks:
+
+    - name: get groovy sdk
+      get_url:
+        url: https://dl.bintray.com/groovy/maven/apache-groovy-sdk-{{ groovy_version }}.zip
+        dest: /home/vagrant/installers/apache-groovy-sdk-{{ groovy_version }}.zip
+        owner: vagrant
+        group: vagrant
+        mode: 0755
+
+    - name: unzip groovy sdk
+      unarchive:
+        src: /home/vagrant/installers/apache-groovy-sdk-{{ groovy_version }}.zip
+        dest: /home/vagrant/bin
+        creates: /home/vagrant/bin/groovy-{{ groovy_version }}
+        owner: vagrant
+        group: vagrant
+        mode: 0755
+
+    - name: ensure bashrc
+      file:
+        path: /home/vagrant/.bashrc
+        owner: vagrant
+        group: vagrant
+        mode: 0644
+
+    - name: add groovy comment to bashrc section
+      lineinfile:
+        dest: /home/vagrant/.bashrc
+        regexp: '# groovy'
+        line: '# groovy'
+        state: present
+
+    - name: add GROOVY_HOME to bashrc
+      lineinfile:
+        dest: /home/vagrant/.bashrc
+        regexp: 'GROOVY_HOME=*'
+        line: "GROOVY_HOME=/home/vagrant/bin/groovy-{{ groovy_version }}"
+        state: present
+
+    - name: add groovy to path
+      lineinfile:
+        dest: /home/vagrant/.bashrc
+        insertafter: 'GROOVY_HOME=*'
+        line: "PATH=$HOME/bin/groovy-{{ groovy_version }}/bin:$PATH"
+
+
+
+
+

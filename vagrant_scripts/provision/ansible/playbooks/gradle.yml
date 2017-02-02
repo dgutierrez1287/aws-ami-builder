@@ -1,0 +1,54 @@
+---
+
+- name: gradle playbook
+  hosts: all
+  become: true
+
+  vars:
+    gradle_version: 3.1
+
+  tasks:
+
+    - name: get gradle
+      get_url:
+        url: https://services.gradle.org/distributions/gradle-{{ gradle_version }}-all.zip
+        dest: /home/vagrant/installers/gradle-{{ gradle_version }}-all.zip
+        owner: vagrant
+        group: vagrant
+        mode: 0755
+
+    - name: unzip gradle
+      unarchive:
+        src: /home/vagrant/installers/gradle-{{ gradle_version }}-all.zip
+        dest: /home/vagrant/bin
+        creates: /home/vagrant/bin/gradle-{{ gradle_version }}
+        owner: vagrant
+        group: vagrant
+        mode: 0755
+
+    - name: ensure bashrc
+      file:
+        path: /home/vagrant/.bashrc
+        owner: vagrant
+        group: vagrant
+        mode: 0644
+
+    - name: add gradle comment to bashrc section
+      lineinfile:
+        dest: /home/vagrant/.bashrc
+        regexp: '# gradle'
+        line: '# gradle'
+        state: present
+
+    - name: add GRADLE_HOME to bashrc
+      lineinfile:
+        dest: /home/vagrant/.bashrc
+        regexp: 'GRADLE_HOME=*'
+        line: "GRADLE_HOME=/home/vagrant/bin/gradle-{{ gradle_version }}"
+        state: present
+
+    - name: add gradle to path
+      lineinfile:
+        dest: /home/vagrant/.bashrc
+        insertafter: 'GRADLE_HOME=*'
+        line: "PATH=$HOME/bin/gradle-{{ gradle_version }}/bin:$PATH"

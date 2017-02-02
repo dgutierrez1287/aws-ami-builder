@@ -1,0 +1,80 @@
+---
+
+- name: base playbook
+  hosts: all
+
+  vars:
+      node_version: 6.9.4
+
+  tasks:
+
+    - name: get node archive
+      get_url:
+        url: https://nodejs.org/dist/v{{ node_version }}/node-v{{ node_version }}-linux-x64.tar.xz
+        dest: /home/vagrant/installers/node-v{{ node_version }}-linux-x64.tar.xz
+        owner: vagrant
+        group: vagrant
+        mode: 0755
+
+    - name: unpack node
+      unarchive:
+        src: /home/vagrant/installers/node-v{{ node_version }}-linux-x64.tar.xz
+        dest: /opt
+        owner: root
+        group: root
+      become: true
+
+    - name: symlink node
+      file:
+        src: /opt/node-v{{ node_version }}-linux-x64/bin/node
+        dest: /bin/node
+        owner: root
+        group: root
+        state: link
+      become: true
+
+    - name: symlink npm
+      file:
+        src: /opt/node-v{{ node_version }}-linux-x64/bin/npm
+        dest: /bin/npm
+        owner: root
+        group: root
+        state: link
+      become: true
+
+    - name: install angular-cli
+      npm:
+        name: angular-cli
+        global: yes
+        state: present
+      become: true
+
+    - name: insall rxjs
+      npm:
+        name: rxjs
+        global: yes
+        state: present
+      become: true
+
+    - name: ensure bashrc
+      file:
+        path: /home/vagrant/.bashrc
+        owner: vagrant
+        group: vagrant
+        mode: 0644
+
+    - name: add node comment to bashrc section
+      lineinfile:
+        dest: /home/vagrant/.bashrc
+        regexp: '# node'
+        line: '# node'
+        state: present
+
+    - name: add node to path
+      lineinfile:
+        dest: /home/vagrant/.bashrc
+        insertafter: '# node'
+        line: "PATH=/opt/node-v{{ node_version }}-linux-x64/bin:$PATH"
+
+
+
